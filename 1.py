@@ -1,3 +1,8 @@
+# dict/list。主要做了查询，还是很难的
+
+
+
+
 """
 def reverseWords(input):
 
