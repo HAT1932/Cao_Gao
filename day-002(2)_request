@@ -1,0 +1,61 @@
+import requests
+import json
+import csv
+import sys
+
+"""学习 草稿
+resp = requests.get(
+    "https://jsonplaceholder.typicode.com/posts",
+    params = {"userId": 1},
+    timeout = 10,
+)
+print(resp.status_code)
+data  = resp.json()
+print(len(data))
+
+resp = requests.post(
+    "https://jsonplaceholder.typicode.com/posts",
+    json = {"title":"test","body": "hello", "userId": 1},
+    timeout = 10
+)
+print(resp.status_code)
+print(resp.json())
+"""
+
+resp = requests.get(
+    "https://jsonplaceholder.typicode.com/posts",
+    params = {"userId":1},
+    timeout = 10
+)
+print(resp.status_code)
+print(resp.headers.get("content-type"))
+#print(resp.text[:200])
+
+if resp.status_code != 200:
+    print("请求失败", resp.status_code, resp.text[:200])
+#    raise SystemExit(1)
+    sys.exit(1)
+
+try:
+    data = resp.json()[:10]
+except FileNotFoundError:
+    config = {"default":"True"}
+except PermissionError as e:
+    print(f"{e}")
+except json.JSONDecodeError:
+    print("不是JSON,原始内容：")
+    print(resp.text[:200])
+    data = {}
+
+for o in data:
+    o["title"] = o.get("title","")[:30] 
+    o["body"] = o.get("body","")[:50]
+print(data)
+
+with open("data/posts.csv","w", encoding = "utf-8-sig",newline="") as f:
+    fieldnames = ["id","title","body"]
+    writer = csv.DictWriter(f,fieldnames = fieldnames)
+    writer.writeheader()
+    for o in data:
+        row = {k: o.get(k, "") for k in fieldnames}
+        writer.writerow(row)    

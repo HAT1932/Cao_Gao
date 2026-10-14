@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-13",
+  "channel": "天猫旗舰店",
+  "orders": [
+    {
+      "order_id": "T1001",
+      "user": "张三",
+      "amount": 299.0,
+      "status": "paid"
+    },
+    {
+      "order_id": "T1002",
+      "user": "李四",
+      "amount": 1580.5,
+      "status": "paid"
+    },
+    {
+      "order_id": "T1003",
+      "user": "王五",
+      "amount": 89.9,
+      "status": "refunded"
+    },
+    {
+      "order_id": "T1004",
+      "user": "赵六",
+      "amount": 420.0,
+      "status": "pending"
+    },
+    {
+      "order_id": "T1005",
+      "user": "钱七",
+      "amount": 66.0,
+      "status": "paid"
+    }
+  ]
+}
