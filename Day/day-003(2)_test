@@ -1,0 +1,135 @@
+"""make_dirty_csv.py —— 生成脏订单数据
+运行：python make_dirty_csv.py  →  生成 dirty_orders.csv（63 行）
+"""
+
+"""
+import csv
+import random
+from datetime import date
+
+random.seed(42)  # 固定种子：每次生成的"脏法"完全一样，方便调试
+
+CITIES = ["北京", "上海", " 广州", "深圳", "北京 ", "hangzhou"]
+
+def dirty_date(d: date) -> str:
+    style = random.randint(0, 2)
+    if style == 0:
+        return d.isoformat()            # 2026-01-05
+    if style == 1:
+        return d.strftime("%Y/%m/%d")   # 2026/01/05
+    return d.strftime("%Y%m%d")         # 20260105
+
+rows = []
+for i in range(60):
+    d = date(2026, 1, random.randint(1, 28))
+    amount = round(random.uniform(20, 2000), 2)
+
+    row = {
+        "order_id": f"ORD{i:04d}",
+        "order_date": dirty_date(d),
+        "city": random.choice(CITIES),
+        "quantity": random.randint(1, 5),
+        "amount": amount,
+    }
+
+    # ---- 按规则埋雷 ----
+    if i % 7 == 3:
+        row["city"] = ""                    # 缺失城市（空串）
+    if i % 11 == 5:
+        row["amount"] = ""                  # 缺失金额
+    if i % 9 == 0:
+        row["amount"] = f"￥{amount:,.2f}"  # 带货币符号和千分位的字符串
+    if i % 13 == 2:
+        row["amount"] = -amount             # 负数（退款误录成负）
+    if i % 15 == 4:
+        row["amount"] = 999999.0            # 离谱大值
+
+    rows.append(row)
+
+# 完全重复行（模拟系统重复推送）
+rows.append(dict(rows[0]))
+rows.append(dict(rows[10]))
+
+with open("dirty_orders.csv", "w", newline="", encoding="utf-8-sig") as f:
+    writer = csv.DictWriter(
+        f, fieldnames=["order_id", "order_date", "city", "quantity", "amount"]
+    )
+    writer.writeheader()
+    writer.writerows(rows)
+
+print(f"OK：已生成 dirty_orders.csv，共 {len(rows)} 行（60 原始 + 2 重复）")
+"""
+
+import pandas as pd
+
+df = pd.read_csv("dirty_orders.csv")
+
+print("==== 清洗前体检 ====")
+
+print(f"{df.shape[0]} 行，{df.shape[1]} 列")
+#print(df.describe())
+print (f"\n数据类型:\n{df.dtypes}")
+print(f"\n缺失值：\n{df.isna().sum()}")
+
+print("==== 处理记录 ====")
+dup_mask = df.duplicated(subset = ["order_id"],keep = "first")
+drop = df.loc[dup_mask]
+drop_len = len(drop)
+drop_ids = drop["order_id"].tolist()
+#df_clean = df[~dup_mask]
+print(f"[4]order_id: 重复数：{df.duplicated(subset=['order_id']).sum()}/{drop_len}条，去除重复为{drop_ids}")
+df =df.drop_duplicates(subset=["order_id"],keep = "first")
+
+before = df["city"].copy()
+df["city"] = df["city"].str.strip()
+diff = before.str.len() - df["city"].str.len() 
+df["city"] = df["city"].replace("",pd.NA)
+df["city"] = df["city"].fillna("未知") 
+print (f"[1]city: 去除{int(diff.sum())}格子, {int((diff>0).sum())}个数据")
+df["city"] = df["city"].str.replace("hangzhou","杭州",regex=False)
+
+#amount---.str.replace---pd.to_numeric
+before = df["amount"].astype(str).copy()
+df["amount"] = (
+    df["amount"]
+    .astype(str)
+    .str.replace("￥", "", regex=False)
+    .str.replace(",", "", regex=False)
+    .replace({"": None, "nan": None})
+)
+diff = before.str.len() - df["amount"].str.len()
+df["amount"] = pd.to_numeric(df["amount"],errors = "coerce")
+print(f"[2]amount: 去除{int(diff.sum())}格子, {int((diff>0).sum())}个数据")
+
+
+#  异常值
+#df = df[(df["amount"]<10000) | (df["amount"].isna())]
+df["status"] = "正常"
+n_sent = int((df["amount"] == 999999.0).sum())
+n_blank = int (df["amount"].isna().sum())
+df.loc[df["amount"] == 999999.0,"status"] = "金额异常"
+df.loc[df["amount"].isna(),"status"] = "空数据"
+df["amount"] = df["amount"].replace(999999.0,pd.NA)
+print(f"去异常值{n_sent}格，哨兵替换为缺失。空格{n_blank}格")
+
+#   退款
+df.loc[df["amount"]<0,"status"] = "退货"    
+positive_median = df.loc[df["amount"]>0,"amount"].median()
+print(f"[3]amount: 哨兵:{n_sent}格 + 缺失{df['amount'].isna().sum()}格子,替换为中位数{positive_median}")
+df["amount"] = df["amount"].fillna(positive_median)
+
+
+
+df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce")
+df["quantity"] = df["quantity"].astype("Int64")
+
+df["order_date"] = pd.to_datetime(df["order_date"], format = "mixed" , errors = "coerce" ) 
+
+#print(df.dtypes)
+#print(df)
+
+
+
+df.to_csv("clean_orders_v1.csv",index = False, encoding = "utf-8-sig" , float_format = "%.2f",date_format="%Y-%m-%d")
+
+
